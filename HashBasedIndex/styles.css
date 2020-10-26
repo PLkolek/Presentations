@@ -1,0 +1,39 @@
+.title-slide .author {
+  color: #666;
+}
+
+.horizontal-split {
+  display: flex;
+}
+
+.horizontal-split > * {
+  flex: 1;
+}
+
+.horizontal-split > *:first-child {
+  margin-right: 1em;
+}
+
+li.pro,
+li.con {
+  list-style-type: none;
+}
+
+li.pro:before,
+li.con::before {
+  margin-right: 0.25em;
+}
+
+li.pro:before {
+  content: "+";
+}
+
+li.con:before {
+  content: "-";
+}
+
+table.hash-table {
+  font-size: 0.5em;
+  margin-top: 1em;
+  margin-top: 2em;
+}

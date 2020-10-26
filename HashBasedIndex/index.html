@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+
+    <title>Hash indexes</title>
+
+    <meta name="description" content="How your database indexes stuff" />
+    <meta name="author" content="Mateusz Kołaczek" />
+
+    <link rel="stylesheet" href="dist/reset.css" />
+    <link rel="stylesheet" href="dist/reveal.css" />
+    <link rel="stylesheet" href="dist/theme/black.css" id="theme" />
+    <link rel="stylesheet" href="dist/customizations.css" />
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- Theme used for syntax highlighted code -->
+    <link
+      rel="stylesheet"
+      href="plugin/highlight/monokai.css"
+      id="highlight-theme"
+    />
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section class="title-slide">
+          <h1>Hash indexes</h1>
+          <p>How your database indexes stuff</p>
+          <small class="author">Mateusz Kołaczek</small>
+        </section>
+        <section>
+          <h3>A simple DB</h3>
+          <pre><code data-trim data-noescape>
+			#!/bin/bash
+
+			db_set() {
+				echo "$1,$2" >> database
+			}
+
+			db_get() {
+				grep "^$1," database | sed -e "s/^$1,//" | tail -n 1
+			}
+
+		  </code></pre>
+        </section>
+        <section>
+          <h3>Example session</h3>
+          <div class="horizontal-split">
+            <pre><code data-trim data-noescape>
+				<span >$ db_set 1423 pizza</span>
+				<span class="fragment" data-fragment-index="3">$ db_set 42 "In Progress..."</span>
+				<span class="fragment" data-fragment-index="5">$ db_set 42 "The Answer"</span>
+				<span class="fragment" data-fragment-index="7">$ db_get 42</span>
+				<span class="fragment" data-fragment-index="8">     The Answer</span>
+			  </code></pre>
+            <pre><code data-trim data-noescape>
+				<span class="fragment" data-fragment-index="2">1423,pizza</span>
+				<span class="fragment" data-fragment-index="4">42,In Progress...</span>
+				<span class="fragment" data-fragment-index="6">42,The Answer</span>
+			  </code></pre>
+          </div>
+          <p>
+            <small>In real world the value would be i.e. JSON</small>
+          </p>
+        </section>
+        <section>
+          <h2>Log based storage</h2>
+          <ul>
+            <li class="pro">Efficient writes - simple file append</li>
+            <li class="con">Terrible reads - O(total number of writes)</li>
+          </ul>
+          <aside class="notes">Not O(number of keys)!</aside>
+        </section>
+        <section>
+		  <h2>Hash indexes</h2>
+		  <div class="fragment" data-fragment-index="1">
+          <div class="horizontal-split">
+            <pre><code data-trim data-noescape>
+				<span >$ db_set 1423 pizza</span>
+				<span class="fragment" data-fragment-index="3">$ db_set 42 "In Progress..."</span>
+				<span class="fragment" data-fragment-index="5">$ db_set 42 "The Answer"</span>
+			  </code></pre>
+            <pre><code data-trim data-noescape>
+				<span class="fragment" data-fragment-index="2">1423,pizza</span>
+				<span class="fragment" data-fragment-index="4">42,In Progress...</span>
+				<span class="fragment" data-fragment-index="6">42,The Answer</span>
+			  </code></pre>
+          </div>
+          <table class="hash-table">
+            <thead>
+              <th>key</th>
+              <th>line number</th>
+            </thead>
+            <tbody>
+              <tr class="fragment" data-fragment-index="2">
+                <td>1423</td>
+                <td>0</td>
+              </tr>
+              <tr class="fragment" data-fragment-index="4">
+                <td>42</td>
+                <td>
+                    <span
+                      class="fragment strike"
+                      data-fragment-index="6"
+                    >
+                      1
+                    </span>
+                    <span class="fragment" data-fragment-index="6"> 2 </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+		  </table>
+		</div>
+          <aside class="notes">
+            <small>In real world: line number -> byte offset</small>
+          </aside>
+		</section>
+		
+		<section>
+			<h2>Segments</h2>
+			<p>When file gets too big, close it and start writing to a new one.</p>
+		</section>
+
+		<section>
+			<h2>Segment compaction</h2>
+			<div class="horizontal-split">
+				<pre ><code data-trim data-noescape>
+					<span class="fragment highlight-current-green" data-fragment-index="2">1423,pizza</span>
+					<span class="fragment highlight-current-green" data-fragment-index="3">42,In Progress...</span>
+					<span class="fragment highlight-current-green" data-fragment-index="2">1423,burger</span>
+					<span class="fragment highlight-current-green" data-fragment-index="2">1423,surówka</span>
+					<span class="fragment highlight-current-green" data-fragment-index="3">42,The Answer</span>
+					<span class="fragment highlight-current-green" data-fragment-index="4">13,Pech</span>
+					<span class="fragment highlight-current-green" data-fragment-index="4">13,Niefart</span>
+					<span class="fragment highlight-current-green" data-fragment-index="4">13,Totolotek</span>
+				  </code></pre>
+				<pre><code data-trim data-noescape>
+					<span class="fragment" data-fragment-index="2">1423,surówka</span>
+					<span class="fragment" data-fragment-index="3">42,The Answer</span>
+					<span class="fragment" data-fragment-index="4">13,Totolotek</span>
+				  </code></pre>
+			  </div>
+		</section>
+		<section>
+			<h2>Segment merging</h2>
+			<div class="horizontal-split">
+				<div>
+				<pre ><code data-trim data-noescape>
+					<span class="fragment highlight-current-green" data-fragment-index="2">1423,surówka</span>
+					<span class="fragment highlight-current-green" data-fragment-index="3">42,In progress...</span>
+					<span class="fragment highlight-current-green" data-fragment-index="4">16091991,PresentInOlder</span>
+				  </code></pre>
+				  <pre><code data-trim data-noescape>
+					<span class="fragment highlight-current-green" data-fragment-index="5">10101991,PresentInNewer</span>
+					<span class="fragment highlight-current-green" data-fragment-index="3">42,The Answer</span>
+					<span class="fragment highlight-current-green" data-fragment-index="2">1423,pizza</span>
+				  </code></pre>
+				  </div>
+				<pre><code data-trim data-noescape>
+					<span class="fragment" data-fragment-index="2">1423,pizza</span>
+					<span class="fragment" data-fragment-index="3">42,The Answer</span>
+					<span class="fragment" data-fragment-index="4">16091991,PresentInOlder</span>
+					<span class="fragment" data-fragment-index="5">10101991,PresentInNewer</span>
+				  </code></pre>
+			  </div>
+		</section>
+		<section>
+			<h2>Compaction and merging</h2>
+			<ul>
+				<li class="fragment">merged segments written to <em>new</em> files</li>
+				<li class="fragment">merging and compaction done in background while reads use old segment files</li>
+				<li class="fragment">merging is done => switch read requests to new segments, delete old</li>
+				<li class="fragment">each segment = own hash map, reads check hash maps from most recent</li>
+				<li class="fragment">merging = few segments => few lookups per read</li>
+			</ul>
+		</section>
+		<section>
+			<h2>Technical details</h2>
+			<ul>
+				<li class="fragment">binary log format, record length + raw bytes</li>
+				<li class="fragment">tombstones for deleting records</li>
+				<li class="fragment">crash recovery = reconstruct hash map from log. Or dump hash map to disk</li>
+				<li class="fragment">partially written records - checksums to detect and ignore</li>
+				<li class="fragment">one writer, many readers (thanks to immutable segments)</li>
+			</ul>
+		</section>
+		<section>
+			<h2>Pros</h2>
+			<ul>
+				<li class="fragment pro">appending and merging are sequential = fast IO</li>
+				<li class="fragment pro">straightforward concurrency and crash recovery 
+					<aside class="notes"> no cases when update fails in the middle of overwrite</aside>
+				</li>
+				<li class="fragment pro">no fragmentation thanks to merging</li>
+			</ul>
+		</section>
+		<section>
+			<h2>Cons</h2>
+			<ul>
+				<li class="fragment con">number of keys limited by memory. On disk hash maps are <em>hard</em></li>
+				<li class="fragment con">inefficient range queries</li>
+			</ul>
+		</section>
+		<section>
+			<h2>In the real world</h2>
+			Bitcask (the default storage engine in Riak) uses this strategy. 
+			Well suited for situations where values are updated frequently.
+		</section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+      });
+    </script>
+  </body>
+</html>
