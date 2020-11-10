@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+
+  <title>Sorted String Table indexes</title>
+
+  <meta name="description" content="How your database indexes stuff S01E02: Sorted String Table indexes"/>
+  <meta name="author" content="Mateusz Kołaczek"/>
+
+  <link rel="stylesheet" href="dist/reset.css"/>
+  <link rel="stylesheet" href="dist/reveal.css"/>
+  <link rel="stylesheet" href="dist/theme/black.css" id="theme"/>
+  <link rel="stylesheet" href="dist/customizations.css"/>
+  <link rel="stylesheet" href="styles.css"/>
+
+  <!-- Theme used for syntax highlighted code -->
+  <link
+      rel="stylesheet"
+      href="plugin/highlight/monokai.css"
+      id="highlight-theme"
+  />
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+    <section class="title-slide">
+      <h1>Sorted String Table indexes</h1>
+      <p>How your database indexes stuff S01E02</p>
+      <small class="author">Mateusz Kołaczek</small>
+    </section>
+    <section>
+      <p>Previously on</p>
+      <h3>How you database indexes stuff:</h3>
+      <h4>Hash indexes</h4>
+    </section>
+    <section>
+
+      <ul>
+        <li>database = log of insert/update operations, split into segments</li>
+        <li>each segment is supported by an in-memory hash table (key -> offset in segment file)</li>
+        <li>one active segment - writes go here, older segments used just for reads</li>
+        <li>segments are compacted and merged in background</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Pros & Cons</h2>
+      <ul>
+        <li class="pro" data-fragment-index="1">appending and merging are sequential = fast IO</li>
+        <li class="pro" data-fragment-index="1">straightforward concurrency and crash recovery
+          <aside class="notes"> no cases when update fails in the middle of overwrite</aside>
+        </li>
+        <li class="pro" data-fragment-index="1">no fragmentation thanks to merging</li>
+        <li class="fragment con" data-fragment-index="2">number of keys limited by memory. On disk hash maps are <em>hard</em></li>
+        <li class="fragment con" data-fragment-index="2">inefficient range queries</li>
+      </ul>
+    </section>
+    <section>
+      <h3>Sorted String Table (SSTable)</h3>
+      <p>Entries in segments are sorted by key!</p>
+      <ul>
+        <li class="fragment">active segment = in memory balanced binary search tree (i.e. Red-Black tree)</li>
+        <li class="fragment">passive segments written to disk by in-order traversal when size treshold is reached</li>
+        <li class="fragment">merging and compaction = merge from mergesort</li>
+        <li class="fragment">search = check memtable (tree in memory), if not found, check segments from newest to oldest</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Sparse index</h2>
+      <p>No need to keep an index of all the keys in memory!</p>
+      <ul>
+        <li class="fragment">keep one key fow every few KB of segment file</li>
+        <li class="fragment">search = find lower and upper bounds in the index, scan segment in between</li>
+      </ul>
+      <p class="fragment"> Note: keys and values are usually variable length, so binary search over segment file can't be used </p>
+    </section>
+    <section>
+      <h2>Practical considerations</h2>
+      <ul>
+        <li class="fragment">group records between keys in index into blocks and compress to save IO and disk space</li>
+        <li class="fragment">keep log of writes to active segment on disk for crash recovery</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Potential optimization: Bloom filters</h2>
+      <p>
+        Non existent key lookups need to go through all segments - possibly slow.
+      </p>
+      <p class="fragment">
+        Bloom filters can give us an immediate answer whether key exists in set with a chosen false positive rate (i.e. 1%)
+      </p>
+    </section>
+
+    <section>
+      <ul>
+        <li> bloom filter = array of integers of size m and k distinct hash functions to [0, m)</li>
+        <li class="fragment"> add = hash with all functions, giving k array positions, increment value in each</li>
+        <li class="fragment"> query = hash with all functions, giving k array positions, check value if any contains 0.
+          yes = key certainly not present in set. no = key may or may not be in set
+        </li>
+      </ul>
+    </section>
+    <section>
+      <h2>In the real world</h2>
+      <p>Engines and databases using SSTables</p>
+      <ul>
+        <li class="fragment">Storage engines: LevelDB, RocksDB</li>
+        <li class="fragment">Databases: Cassandra, HBase, Google BigTable</li>
+        <li class="fragment">Lucene, indexing engine for Elasticsearch uses similar method for its term dictionary</li>
+      </ul>
+    </section>
+    <section>
+      <h3>Comparison with Hash-Based indexes</h3>
+      <ul>
+        <li class="fragment pro">Range queries are efficient thanks to ordering of keys</li>
+        <li class="fragment pro">Dataset can be bigger than available memory</li>
+      </ul>
+    </section>
+    <section>
+      <h1>Questions?</h1>
+    </section>
+  </div>
+</div>
+
+<script src="dist/reveal.js"></script>
+<script src="plugin/notes/notes.js"></script>
+<script src="plugin/markdown/markdown.js"></script>
+<script src="plugin/highlight/highlight.js"></script>
+<script>
+    // More info about initialization & config:
+    // - https://revealjs.com/initialization/
+    // - https://revealjs.com/config/
+    Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+    });
+</script>
+</body>
+</html>
