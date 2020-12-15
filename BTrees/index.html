@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+
+  <title>B-Tree indexes</title>
+
+  <meta name="description" content="How your database indexes stuff S01E03: B-Trees"/>
+  <meta name="author" content="Mateusz Kołaczek"/>
+
+  <link rel="stylesheet" href="dist/reset.css"/>
+  <link rel="stylesheet" href="dist/reveal.css"/>
+  <link rel="stylesheet" href="dist/theme/black.css" id="theme"/>
+  <link rel="stylesheet" href="dist/customizations.css"/>
+  <link rel="stylesheet" href="styles.css"/>
+
+  <!-- Theme used for syntax highlighted code -->
+  <link
+      rel="stylesheet"
+      href="plugin/highlight/monokai.css"
+      id="highlight-theme"
+  />
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+    <section class="title-slide">
+      <h1>B-Trees</h1>
+      <p>How your database indexes stuff S01E03</p>
+      <small class="author">Mateusz Kołaczek</small>
+    </section>
+    <section>
+      <p>Previously on</p>
+      <h3>How you database indexes stuff:</h3>
+      <h4>SSTables (LSM trees)</h4>
+    </section>
+    <section>
+      <ul>
+        <li>database = log of insert/update operations, split into sorted segments</li>
+        <li>each segment is supported by an in-memory sparse index (key -> offset in segment file)</li>
+        <li>one active segment (in memory BST) - writes go here, older segments used just for reads</li>
+        <li>segments are compacted and merged in background</li>
+      </ul>
+    </section>
+    <section>
+      <h2>B-Tree</h2>
+      <img src="assets/BTree.png" />
+    </section>
+    <section>
+      <h2>Insert</h2>
+      <ol>
+        <li class="fragment">Find leaf to add new (key, value) pair</li>
+        <li class="fragment">If not full, insert the key to the leaf. Done</li>
+        <li class="fragment">If full, split block into two, insert middle element into parent (potentially recursing if parent is also full)</li>
+      </ol>
+      <small class="fragment">Deletion is unfortunately more complicated...</small>
+    </section>
+
+    <section>
+      <h3>B-Tree</h3>
+      <ul>
+        <li class="fragment">database split to 4kb blocks, corresponding to filesystem blocks </li>
+        <li class="fragment">internal node = block with sorted list of keys splitting the key range into subranges and pointers to subtrees representing them </li>
+        <li class="fragment">leaf = block with key -> value mapping</li>
+        <li class="fragment">branching factor = max number of children in a node, typically several hundred </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Tree height</h2>
+      <ul>
+        <li class="fragment">Most databases fit into 3 or 4 level deep tree (just 4 disk reads per lookup!)</li>
+        <li class="fragment">With 4kb blocks, branching factor of 500 and 4 levels, up to 256TBs can be stored</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Reliability</h2>
+      <ol>
+        <li class="fragment">In contrast to LSM trees, pages are <em>overwritten</em></li>
+        <li class="fragment">Multiple writes per operation may be needed (i.e. when splitting nodes)</li>
+        <li class="fragment">Database can die in the middle of such operation</li>
+      </ol>
+      <p class="fragment"> Solution: write-ahead-log (WAL, redo-log). </p>
+    </section>
+
+    <section>
+      <h2>Concurrency</h2>
+      <ol>
+        <li class="fragment">Multiple threads reading and writing to the tree</li>
+        <li class="fragment">Latches (lightweight locks) needed to ensure consistency </li>
+      </ol>
+      <p class="fragment"> LSM trees are simpler - one writer thread, immutable segments </p>
+    </section>
+
+    <section>
+      <h2> Optimizations and variations </h2>
+      <ul>
+        <li>copy-on-write, persistent data structure - useful for snapshot isolation</li>
+        <li>keys in internal nodes can be abbreviated, allowing higher branching factor</li>
+        <li>try to keep leaf pages sequentially on disk for faster scans</li>
+        <li>add pointers between leafs for faster scans</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>LSM > B-Tree</h2>
+      <ul>
+        <li class="pro">writes are sequential = fast IO, especially on magnetic drives</li>
+        <li class="pro">better compression and no fragmentation - less disk space and bandwidth needed</li>
+      </ul>
+    </section>
+    <section>
+      <h2>LSM < B-Tree</h2>
+      <ul>
+        <li class="pro">no compaction interfering with ongoing reads and writes </li>
+        <li class="pro">at high write throughput compaction might not keep up with writes 
+          - number of unmerged segments go up, eating disk space and slowing down reads
+        </li>
+        <li class="pro">B-Trees allow locking ranges of keys, enabling strong transactional semantics </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Performance</h2>
+      <span class="fragment">Benchmarks inconclusive and sensitive to details of workload, but... </span>
+      <ul class="fragment">
+        <li> B-Trees faster for reads (no need to scan all segments) </li>
+        <li> LSM Trees faster for writes (sequential IO) </li>
+      </ul>
+    </section>
+    <section>
+      <h2>In the real world</h2>
+      <p>Ubiquitous. Almost every SQL database uses them.</p>
+    </section>
+    <section>
+      <h1>Questions?</h1>
+    </section>
+  </div>
+</div>
+
+<script src="dist/reveal.js"></script>
+<script src="plugin/notes/notes.js"></script>
+<script src="plugin/markdown/markdown.js"></script>
+<script src="plugin/highlight/highlight.js"></script>
+<script>
+    // More info about initialization & config:
+    // - https://revealjs.com/initialization/
+    // - https://revealjs.com/config/
+    Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+    });
+</script>
+</body>
+</html>
